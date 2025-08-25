@@ -7,6 +7,7 @@ use App\Enums\TransactionType;
 use App\Enums\UserTransactionRole;
 use App\Models\Concerns\HasUUID;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Transaction extends Model
 {
@@ -26,4 +27,18 @@ class Transaction extends Model
         'transaction_type' => TransactionType::class,
         'user_transaction_roll' => UserTransactionRole::class,
     ];
+
+    public function relatedWallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    public function user(): HasOne
+    {
+        return $this->hasOne(user::class, 'user_id');
+    }
+    public function reciver(): HasOne
+    {
+        return $this->hasOne(user::class, 'related_wallet_id');
+    }
 }
