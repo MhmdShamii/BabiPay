@@ -11,14 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('wallets', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('name')->unique();
-            $table->string('email')->unique();
-            $table->string('password');
-            $table->string('phone');
-            $table->string('role')->default('user');
+
+            $table->foreignUuid('user_id')->constrained()->nullOnDelete();
+
+            $table->foreignUuid('currency_id')->constrained()->nullOnDelete();
+
+            $table->unsignedBigInteger('balance')->default(0);
             $table->string('status')->default('active');
+
+            $table->unique(['user_id', 'currency_id']);
 
             $table->timestamps();
         });
@@ -29,8 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
-        Schema::dropIfExists('sessions');
+        Schema::dropIfExists('wallets');
     }
 };
