@@ -6,7 +6,7 @@ use App\Enums\WalletStatus;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\HasUuid;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Wallet extends Model
 {
@@ -22,14 +22,14 @@ class Wallet extends Model
         'status' => WalletStatus::class,
     ];
 
-    public function owner(): HasOne
+    public function owner(): BelongsTo
     {
-        return $this->hasOne(User::class);
+        return $this->belongsTo(User::class);
     }
 
-    public function currency(): HasOne
+    public function currency(): BelongsTo
     {
-        return $this->hasOne(Currency::class);
+        return $this->belongsTo(Currency::class);
     }
 
     public function transactions(): HasMany

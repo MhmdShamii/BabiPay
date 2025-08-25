@@ -32,15 +32,7 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
-    }
-
-    public function wallet(): HasMany
+    public function wallets(): HasMany
     {
         return $this->hasMany(Wallet::class);
     }

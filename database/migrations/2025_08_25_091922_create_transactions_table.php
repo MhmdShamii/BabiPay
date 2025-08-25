@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            $table->foreignUuid('user_id')->constrained()->nullOnDelete();
+            $table->foreignUuid('user_id')->nullable()->constrained()->nullOnDelete();
 
-            $table->foreignUuid('wallet_id')->constrained()->nullOnDelete();
+            $table->foreignUuid('wallet_id')->nullable()->constrained()->nullOnDelete();
 
             //have value ony if transaction type is P2P
             $table->foreignUuid('related_wallet_id')->nullable()->constrained('wallets')->nullOnDelete();
@@ -29,6 +29,8 @@ return new class extends Migration
 
             $table->string('description');
             $table->timestampTz("transaction_date_time");
+
+            $table->string('status')->default('pending');
 
             $table->timestamps();
         });

@@ -5,13 +5,13 @@ namespace App\Models;
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
 use App\Enums\UserTransactionRole;
-use App\Models\Concerns\HasUUID;
+use App\Models\Concerns\HasUuid;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Transaction extends Model
 {
-    use HasUUID;
+    use HasUuid;
 
     protected $fillable = [
         'user_id',
@@ -25,20 +25,26 @@ class Transaction extends Model
     protected $casts = [
         'status' => TransactionStatus::class,
         'transaction_type' => TransactionType::class,
-        'user_transaction_roll' => UserTransactionRole::class,
+        'user_transaction_role' => UserTransactionRole::class,
     ];
 
-    public function relatedWallet(): HasOne
+    public function relatedWallet(): BelongsTo
     {
-        return $this->hasOne(Wallet::class);
+        return $this->belongsTo(Wallet::class, 'related_wallet_id');
     }
 
-    public function user(): HasOne
+    public function user(): BelongsTo
     {
-        return $this->hasOne(user::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
-    public function reciver(): HasOne
+
+    public function wallet(): BelongsTo
     {
-        return $this->hasOne(user::class, 'related_wallet_id');
+        return $this->belongsTo(Wallet::class, 'wallet_id');
+    }
+
+    public function receiver(): BelongsTo
+    {
+        return $this->belongsTo(Wallet::class, 'related_wallet_id');
     }
 }

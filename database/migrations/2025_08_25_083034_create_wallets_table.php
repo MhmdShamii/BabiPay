@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('wallets', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            $table->foreignUuid('user_id')->constrained()->nullOnDelete();
+            $table->foreignUuid('user_id')->nullable()->constrained()->nullOnDelete();
 
-            $table->foreignUuid('currency_id')->constrained()->nullOnDelete();
+            $table->foreignUuid('currency_id')->nullable()->constrained()->nullOnDelete();
 
             $table->unsignedBigInteger('balance')->default(0);
             $table->string('status')->default('active');
