@@ -16,7 +16,10 @@ class AuthController extends Controller
 
         $user = User::create($data);
 
-        $token = $user->createToken('api', ['*'])->plainTextToken;
+        $token = $user->createToken('api', ['*']);
+        $token->accessToken->forceFill([
+            'expires_at' => now()->addDays(2),
+        ])->save();
 
         return response()->json([
             'message' => 'Registered successfully.',
