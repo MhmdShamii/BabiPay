@@ -4,13 +4,16 @@ namespace App\Models;
 
 use App\Enums\WalletStatus;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Concerns\HasUuid;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Wallet extends Model
 {
-    use HasUuid;
+    use HasUuids;
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'user_id',
