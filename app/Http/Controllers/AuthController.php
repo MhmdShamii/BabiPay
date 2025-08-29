@@ -7,22 +7,28 @@ use App\Http\Requests\Auth\LoginUserRequest;
 use App\Http\Requests\Auth\RegisterUserRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
     public function register(RegisterUserRequest $request)
     {
+        //validate request feild
         $data = $request->validated();
 
+        //assign default role
         $data['role'] = UserRole::User;
 
+        //create user
         $user = User::create($data);
 
+        //generate access token
         $token = $user->createToken('api', ['*']);
         $token->accessToken->forceFill([
             'expires_at' => now()->addDays(2),
         ])->save();
 
+        //return user
         return response()->json([
             'message' => 'Registered successfully.',
             'user'    => [
@@ -81,6 +87,18 @@ class AuthController extends Controller
             'token' => $newtoken->plainTextToken,
             'expieres_at' => $newtoken->accessToken->expires_at,
             'token_type' => 'Bearer',
-        ]);
+        ], 200);
+    }
+
+
+    public function me(Request $request)
+    {
+        return response()->json($request->user());
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->tokens()?->delete();
+        return response()->json(['message' => 'Logged out.']);
     }
 }
