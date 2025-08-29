@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CurrencyController;
+use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -13,4 +14,7 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::post('/currency', [CurrencyController::class, 'create']);
     Route::get('/currency', [CurrencyController::class, 'getAll']);
+
+    Route::post('/wallet', [WalletController::class, 'create']);
+    Route::get('/wallet', [WalletController::class, 'getAll']);
 });
