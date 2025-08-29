@@ -1,8 +1,12 @@
 <?php
 
+use App\Enums\UserRole;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -13,7 +17,7 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('name')->unique();
+            $table->string('username')->unique();
             $table->string('email')->unique();
             $table->string('password');
             $table->string('phone');
@@ -22,6 +26,20 @@ return new class extends Migration
 
             $table->timestamps();
         });
+
+        DB::table('users')->updateOrInsert(
+            ['email' => 'admin@babipay.com'],
+            [
+                'id' => DB::table('users')->where('email', 'admin@babipay.com')->value('id')
+                    ?? (string) Str::uuid(),
+                'username' => 'admin',
+                'password' => Hash::make('admin'),
+                'role' => UserRole::Admin,
+                'phone' => '+961 00 000 000',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
     }
 
     /**

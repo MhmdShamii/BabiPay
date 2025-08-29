@@ -5,13 +5,16 @@ namespace App\Models;
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
 use App\Enums\UserTransactionRole;
-use App\Models\Concerns\HasUuid;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Transaction extends Model
 {
-    use HasUuid;
+    use HasUuids;
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'user_id',
