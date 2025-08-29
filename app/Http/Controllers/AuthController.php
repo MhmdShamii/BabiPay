@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
+use App\Enums\WalletStatus;
 use App\Http\Requests\Auth\LoginUserRequest;
 use App\Http\Requests\Auth\RegisterUserRequest;
+use App\Models\Currency;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 
@@ -28,6 +31,16 @@ class AuthController extends Controller
             'expires_at' => now()->addDays(2),
         ])->save();
 
+        //create the users defauld starting wallet
+        $defaultCurrencyId = Currency::where('code', 'USD')->value('id');
+
+        $newWallet = Wallet::create([
+            'user_id' => $user->id,
+            'balance' => 0,
+            'currency_id' => $defaultCurrencyId,
+            'status' => WalletStatus::Active,
+        ]);
+
         //return user
         return response()->json([
             'message' => 'Registered successfully.',
@@ -38,8 +51,14 @@ class AuthController extends Controller
                 'role'     => $user->role,
                 'phone'    => $user->phone,
                 'created_at' => $user->created_at,
+                'wallet' => [
+                    'id' => $newWallet->id,
+                    'balance' => $newWallet->balance,
+                    'currency' => $newWallet->currency->name,
+                    'status' => $newWallet->status,
+                ]
             ],
-            'token'   => $token,
+            'token' => $token->plainTextToken,
             'expieres_at' => $token->accessToken->expires_at,
             'token_type' => 'Bearer',
         ], 201);
@@ -93,7 +112,36 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        $wallets = $user->wallets()
+            ->with('currency:id,name,code')
+            ->latest()
+            ->get()
+            ->map(function ($wallet) {
+                return [
+                    'id'       => $wallet->id,
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                    'status'   => $wallet->status,
+                ];
+            })
+            ->all();
+
+        return response()->json([
+            'user' => [
+                'id'        => $user->id,
+                'username'  => $user->username,
+                'email'     => $user->email,
+                'role'      => $user->role,
+                'phone'     => $user->phone,
+                'wallets' => $wallets,
+            ],
+        ], 200);
     }
 
     public function logout(Request $request)
