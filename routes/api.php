@@ -17,4 +17,5 @@ Route::middleware("auth:sanctum")->group(function () {
 
     Route::post('/wallet', [WalletController::class, 'create']);
     Route::get('/wallet', [WalletController::class, 'show']);
+    Route::get('/wallets', [WalletController::class, 'showAll']);
 });

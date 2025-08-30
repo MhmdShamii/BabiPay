@@ -42,11 +42,10 @@ class WalletController extends Controller
         $data = $request->validated();
         $user = Auth::user();
 
-        // Ensure wallet belongs to authenticated user
         $wallet = Wallet::where('id', $data['wallet_id'])
             ->where('user_id', $user->id)
             ->with('currency:id,name,code')
-            ->firstOrFail(); // throws 404 if not found
+            ->first();
 
         return response()->json([
             'wallet' => [
@@ -56,5 +55,12 @@ class WalletController extends Controller
                 'status'   => $wallet->status,
             ]
         ]);
+    }
+    public function showAll()
+    {
+        $user = Auth::user();
+        $wallets = Wallet::where('user_id', $user->id)->get();
+
+        return response()->json($wallets);
     }
 }
