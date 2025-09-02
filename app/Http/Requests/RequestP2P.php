@@ -24,7 +24,7 @@ class RequestP2P extends FormRequest
     {
         return [
             'sender_wallet_id' => 'required|exists:wallets,id',
-            'receiver_wallet_id' => 'required|exists:wallets,id',
+            'reciverIdentifier' => 'required|exists:users,username',
             'description' => 'nullable|string|max:255',
             'amount'    => 'required|numeric|min:0.01',
         ];

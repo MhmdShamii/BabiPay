@@ -26,20 +26,6 @@ return new class extends Migration
 
             $table->timestamps();
         });
-
-        DB::table('users')->updateOrInsert(
-            ['email' => 'admin@babipay.com'],
-            [
-                'id' => DB::table('users')->where('email', 'admin@babipay.com')->value('id')
-                    ?? (string) Str::uuid(),
-                'username' => 'admin',
-                'password' => Hash::make('admin'),
-                'role' => UserRole::Admin,
-                'phone' => '+961 00 000 000',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
     }
 
     /**
