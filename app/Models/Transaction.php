@@ -22,7 +22,10 @@ class Transaction extends Model
         'related_wallet_id',
         'amount',
         'user_transaction_role',
-        'description'
+        'transaction_type',
+        'description',
+        'status',
+        'transaction_date_time',
     ];
 
     protected $casts = [
