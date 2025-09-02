@@ -27,7 +27,7 @@ return new class extends Migration
             $table->unsignedBigInteger('amount');
             $table->string('transaction_type')->default('P2P');
 
-            $table->string('description');
+            $table->string('description')->nullable();
             $table->timestampTz("transaction_date_time");
 
             $table->string('status')->default('pending');
