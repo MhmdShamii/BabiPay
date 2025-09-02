@@ -3,8 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -19,16 +17,6 @@ return new class extends Migration
             $table->string('code', 3)->unique();
             $table->timestamps();
         });
-
-        DB::table('currencies')->updateOrInsert(
-            ['code' => 'USD'],
-            [
-                'id' => (string) Str::uuid(),
-                'name' => 'United States Dollar',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
     }
 
     /**

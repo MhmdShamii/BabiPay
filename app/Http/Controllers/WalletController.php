@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\WalletStatus;
 use App\Http\Requests\RequestWallet;
+use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\Auth;
 
@@ -46,6 +47,13 @@ class WalletController extends Controller
                 'status'   => $wallet->status,
             ]
         ]);
+    }
+
+    public function showUserWallets(User $user)
+    {
+        $wallets = Wallet::where('user_id', $user->id)->get();
+
+        return response()->json($wallets);
     }
 
     public function showAll()
