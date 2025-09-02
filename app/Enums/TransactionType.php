@@ -5,6 +5,6 @@ namespace App\Enums;
 enum TransactionType: string
 {
     case Deposit = 'deposit';
-    case Withdrawl = 'withdrawl';
+    case Withdraw = 'withdraw';
     case PeerToPeer = 'P2P';
 }
