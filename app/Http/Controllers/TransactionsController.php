@@ -8,8 +8,10 @@ use App\Http\Requests\RequestDeposit;
 use App\Http\Requests\RequestP2P;
 use App\Http\Requests\RequestWithdraw;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class TransactionsController extends Controller
 {
@@ -39,6 +41,7 @@ class TransactionsController extends Controller
             'transaction' => $transaction
         ]);
     }
+
     public function withdraw(RequestWithdraw $request)
     {
         $validation = $request->validated();
@@ -72,28 +75,48 @@ class TransactionsController extends Controller
         $user = Auth::user();
 
         $senderWallet = Wallet::findOrFail($validation['sender_wallet_id']);
-        $receiverWallet = Wallet::findOrFail($validation['receiver_wallet_id']);
 
-        if ($senderWallet->currency_id !== $receiverWallet->currency_id) {
-            return response()->json(['message' => 'Currency mismatch between wallets'], 400);
+
+        if (! Gate::allows('canSendFromWallet', $senderWallet)) {
+            return response()->json(['message' => 'Unauthorizedss'], 403);
         }
 
         if ($senderWallet->balance < $validation['amount']) {
             return response()->json(['message' => 'Insufficient balance in sender wallet'], 400);
         }
 
+        $reciveruser = User::where('email', $validation['reciverIdentifier'])
+            ->orWhere('username', $validation['reciverIdentifier'])
+            ->first();
+
+        if (! $reciveruser) {
+            return response()->json(['message' => 'Reciver not Found'], 400);
+        }
+
+        $receiverWallets = Wallet::where("user_id", $reciveruser->id)->get();
+
+        if ($receiverWallets->isEmpty()) {
+            return response()->json(['message' => 'Receiver wallets not found'], 400);
+        }
+
+        $walletToRecive = $receiverWallets->where("currency_id", $senderWallet->currency_id)->first();
+
+        if (! $walletToRecive) {
+            return response()->json(['message' => 'Reciver Dont have a wallet for this currency'], 400);
+        }
+
         $senderWallet->balance -= $validation['amount'];
-        $receiverWallet->balance += $validation['amount'];
+        $walletToRecive->balance += $validation['amount'];
         $senderWallet->save();
-        $receiverWallet->save();
+        $walletToRecive->save();
 
         $transaction = Transaction::create([
             'user_id'   => $user->id,
             'wallet_id' => $senderWallet->id,
-            'related_wallet_id' => $receiverWallet->id,
+            'related_wallet_id' => $walletToRecive->id,
             'amount'    => $validation['amount'],
             'transaction_type' => TransactionType::PeerToPeer,
-            'description' => 'P2P transfer',
+            'description' => $validation['description'],
             'status' => TransactionStatus::Complete,
             'transaction_date_time' => now(),
         ]);
@@ -101,7 +124,7 @@ class TransactionsController extends Controller
         return response()->json([
             'message' => 'P2P transfer successful',
             'sender_wallet'  => $senderWallet,
-            'receiver_wallet' => $receiverWallet,
+            'receiver_wallet' => $walletToRecive,
             'transaction' => $transaction
         ]);
     }

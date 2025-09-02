@@ -38,6 +38,21 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    public function isAdmin(): bool
+    {
+        return $this->role === UserRole::Admin;
+    }
+
+    public function isUser(): bool
+    {
+        return $this->role === UserRole::User;
+    }
+
+    public function isEmployee(): bool
+    {
+        return $this->role === UserRole::Employee;
+    }
+
     public function wallets(): HasMany
     {
         return $this->hasMany(Wallet::class);
