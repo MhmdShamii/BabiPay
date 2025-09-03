@@ -37,5 +37,6 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('deposit', fn($user) => $user->role === UserRole::Employee || $user->role === UserRole::Admin);
         Gate::define('withdraw', fn($user) => $user->role === UserRole::Employee || $user->role === UserRole::Admin);
+        Gate::define('isAdmin', fn($user) => $user->role === UserRole::Admin);
     }
 }
