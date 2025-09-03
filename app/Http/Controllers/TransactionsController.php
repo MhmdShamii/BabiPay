@@ -34,11 +34,24 @@ class TransactionsController extends Controller
             'status' => TransactionStatus::Complete,
             'transaction_date_time' => now(),
         ]);
+        $walletOwner = User::find($wallet->user_id)->only(['id', 'username', 'email']);
 
         return response()->json([
             'message' => 'Deposit successful',
-            'wallet'  => $wallet,
-            'transaction' => $transaction
+            'ammountAdded'  => $validation['amount'],
+            'wallet'  => [
+                'id'       => $wallet->id,
+                'owner'     => $walletOwner,
+                'balance'  => $wallet->balance,
+                'currency' => $wallet->currency->name,
+            ],
+            'transaction' => [
+                'id'       => $transaction->id,
+                'amount'   => $transaction->amount,
+                'type'     => $transaction->transaction_type,
+                'status'   => $transaction->status,
+                'date'     => $transaction->transaction_date_time,
+            ]
         ]);
     }
 
@@ -62,10 +75,24 @@ class TransactionsController extends Controller
             'transaction_date_time' => now(),
         ]);
 
+        $walletOwner = User::find($wallet->user_id)->only(['id', 'username', 'email']);
+
         return response()->json([
             'message' => 'Withdrawal successful',
-            'wallet'  => $wallet,
-            'transaction' => $transaction
+            'withdrawAmount'  => $validation['amount'],
+            'wallet'  => [
+                'id'       => $wallet->id,
+                'owner'     => $walletOwner,
+                'balance'  => $wallet->balance,
+                'currency' => $wallet->currency->name,
+            ],
+            'transaction' => [
+                'id'       => $transaction->id,
+                'amount'   => $transaction->amount,
+                'type'     => $transaction->transaction_type,
+                'status'   => $transaction->status,
+                'date'     => $transaction->transaction_date_time,
+            ]
         ]);
     }
 
@@ -116,16 +143,38 @@ class TransactionsController extends Controller
             'related_wallet_id' => $walletToRecive->id,
             'amount'    => $validation['amount'],
             'transaction_type' => TransactionType::PeerToPeer,
-            'description' => $validation['description'],
+            'description' => $validation['description'] ?? 'P2P transfer to ' . $reciveruser->username,
             'status' => TransactionStatus::Complete,
             'transaction_date_time' => now(),
         ]);
 
+
+
         return response()->json([
             'message' => 'P2P transfer successful',
-            'sender_wallet'  => $senderWallet,
-            'receiver_wallet' => $walletToRecive,
-            'transaction' => $transaction
+            'senderWallet'  => [
+                'id'       => $senderWallet->id,
+                'userName'  => $user->username,
+                'balance'  => $senderWallet->balance,
+                'currency' => $senderWallet->currency->name,
+            ],
+            'receiverWallet' => [
+                'id'       => $walletToRecive->id,
+                'reciverName'  => $reciveruser->username,
+                'balance'  => $walletToRecive->balance,
+                'currency' => $walletToRecive->currency->name,
+            ],
+            'transaction' => [
+                'id'       => $transaction->id,
+                'from'     => $user->username,
+                'to'       => $reciveruser->username,
+                'currency' => $senderWallet->currency->name,
+                'amount'   => $transaction->amount,
+                'description' => $transaction->description,
+                'type'     => $transaction->transaction_type,
+                'status'   => $transaction->status,
+                'date'     => $transaction->transaction_date_time,
+            ]
         ]);
     }
 }
