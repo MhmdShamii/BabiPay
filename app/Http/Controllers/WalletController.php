@@ -53,7 +53,19 @@ class WalletController extends Controller
     {
         $wallets = Wallet::where('user_id', $user->id)->get();
 
-        return response()->json($wallets);
+        return response()->json([
+            'ownerId' => $user->id,
+            'ownerUserName' => $user->username,
+            'wallets' => $wallets->map(function ($wallet) {
+                return [
+                    'id'       => $wallet->id,
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                    'status'   => $wallet->status,
+                ];
+            })
+
+        ]);
     }
 
     public function showAll()
@@ -61,6 +73,15 @@ class WalletController extends Controller
         $user = Auth::user();
         $wallets = Wallet::where('user_id', $user->id)->get();
 
-        return response()->json($wallets);
+        return response()->json(
+            $wallets->map(function ($wallet) {
+                return [
+                    'id'       => $wallet->id,
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                    'status'   => $wallet->status,
+                ];
+            })
+        );
     }
 }
