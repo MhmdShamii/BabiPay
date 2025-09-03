@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\TransactionsController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,4 +31,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/transactions/withdraw', [TransactionsController::class, 'withdraw'])
         ->middleware('can:withdraw');
     Route::post('/transactions/p2p', [TransactionsController::class, 'p2p']);
+
+    Route::middleware('can:isAdmin')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users/promote/{user}', [UserController::class, 'promote']);
+        Route::post('/users/deactivate/{user}', [UserController::class, 'deactivate']);
+        Route::post('/users/activate/{user}', [UserController::class, 'activate']);
+        Route::post('/wallets/freeze/{wallet}', [WalletController::class, 'freeze']);
+        Route::post('/wallets/activate/{wallet}', [WalletController::class, 'activate']);
+    });
 });
