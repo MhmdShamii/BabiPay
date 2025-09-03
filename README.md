@@ -1,61 +1,116 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# BabiPay – Laravel API Project
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+BabiPay is a **multi-currency wallet and transaction API** built with Laravel 11, Sanctum, and UUIDs.
+It supports role-based access control (Admin, Employee, Customer) and secure transactions (deposit, withdraw, P2P).
 
-## About Laravel
+## 📂 Project Structure
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### **Models**
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+-   **User.php** → UUID IDs, roles (`UserRole`), relations to wallets/transactions
+-   **Wallet.php** → belongs to User + Currency, has balance + status (`WalletStatus`)
+-   **Currency.php** → stores available currencies (`code`, `name`)
+-   **Transaction.php** → logs deposits, withdrawals, P2P with `TransactionType` + `TransactionStatus`
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### **Controllers**
 
-## Learning Laravel
+-   **AuthController** → register, login, me, logout
+-   **WalletController** → create wallet, show wallet(s)
+-   **CurrencyController** → create/list currencies
+-   **TransactionsController** → deposit, withdraw, peer-to-peer transfer
+-   **UserController** → manage user data
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### **Requests**
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Form Request validation for each operation: register, login, wallet, currency, deposit, withdraw, P2P.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### **Enums**
 
-## Laravel Sponsors
+-   `UserRole` → Admin, Employee, Customer
+-   `UserStatus` → Active, Inactive, Suspended
+-   `WalletStatus` → Active, Inactive, Suspended
+-   `TransactionType` → Deposit, Withdraw, PeerToPeer
+-   `TransactionStatus` → Pending, Complete, Failed, Cancelled
+-   `UserTransactionRole` → Sender / Receiver
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### **Authorization (Gates)**
 
-### Premium Partners
+Defined in `AppServiceProvider` and applied in routes:
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+-   `create-currency` → Admin only
+-   `view-wallet` → Wallet owner
+-   `view-wallets` → Owner, Admin, Employee
+-   `canSendFromWallet` → Wallet owner
+-   `deposit` → Admin or Employee
+-   `withdraw` → Admin or Employee
 
-## Contributing
+### **Routes**
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+<pre class="overflow-visible!" data-start="1806" data-end="2708"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>POST   /register               → AuthController@register
+POST   /login                  → AuthController@login
+GET    /me                     → AuthController@me (auth required)
+POST   /logout                 → AuthController@logout (auth required)
 
-## Code of Conduct
+GET    /currency               → CurrencyController@getAll
+POST   /currency               → CurrencyController@create (Admin only)
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+POST   /wallets                → WalletController@create
+GET    /wallets                → WalletController@showAll
+GET    /wallets/{wallet}       → WalletController@show (owner only)
+GET    /users/{user}/wallets   → WalletController@showUserWallets (owner/admin/employee)
 
-## Security Vulnerabilities
+POST   /transactions/deposit   → TransactionsController@deposit (Employee/Admin)
+POST   /transactions/withdraw  → TransactionsController@withdraw (Employee/Admin)
+POST   /transactions/p2p       → TransactionsController@p2p (owner only)
+</span></span></code></div></div></pre>
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### **Migrations**
 
-## License
+-   **Users** → UUID PK, role, username, email, password, phone
+-   **Currencies** → UUID, code, name
+-   **Wallets** → UUID, user_id, currency_id, balance, status
+-   **Transactions** → UUID, user_id, wallet_id, related_wallet_id, amount, type, status, description, date
+-   **Personal Access Tokens** → Sanctum authentication
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### **Seeders**
+
+-   **AdminUserSeeder** → default admin (email/password from `.env`)
+-   **CurrencySeeder** → seeds default currencies (e.g. USD, LBP)
+-   **DatabaseSeeder** → runs Admin + Currency seeders
+
+---
+
+## ▶️ How to Start
+
+1. Create a PostgreSQL database manually called **`babipay`**:
+    <pre class="overflow-visible!" data-start="3356" data-end="3397"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-sql"><span><span>CREATE</span><span> DATABASE babipay;
+    </span></span></code></div></div></pre>
+2. Run migrations (this will also run the seeders):
+    <pre class="overflow-visible!" data-start="3454" data-end="3498"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-bash"><span><span>php artisan migrate --seed
+    </span></span></code></div></div></pre>
+3. Start the Laravel development server:
+    <pre class="overflow-visible!" data-start="3544" data-end="3579"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="sticky top-9"><div class="absolute end-0 bottom-0 flex h-9 items-center pe-2"><div class="bg-token-bg-elevated-secondary text-token-text-secondary flex items-center gap-4 rounded-sm px-2 font-sans text-xs"></div></div></div><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-bash"><span><span>php artisan serve
+    </span></span></code></div></div></pre>
+4. Use the seeded **Admin** account (set in `.env`) to login and manage the system.
+
+---
+
+## 📦 Tech Stack
+
+-   Laravel 11
+-   Sanctum for token-based auth
+-   UUID primary keys
+-   Role/Status/Transaction enums
+-   Gates for route-level authorization
+
+---
+
+## ✅ Summary
+
+BabiPay is a **role-based, multi-currency wallet API** with authentication, wallet management, and secure transactions (deposit, withdraw, P2P).
+
+The codebase demonstrates:
+
+-   Good Laravel practices (Form Requests, Gates, UUIDs, Seeders)
+-   Separation of concerns (Models, Controllers, Enums, Requests)
+-   A realistic e-wallet domain model suitable for learning or extension
