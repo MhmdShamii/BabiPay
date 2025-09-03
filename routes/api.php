@@ -18,7 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/currency', [CurrencyController::class, 'getAll']);
 
     Route::post('/wallets', [WalletController::class, 'create']);
-    Route::get('/wallets', [WalletController::class, 'showAll']);
+    Route::get('/wallets', [WalletController::class, 'showAll'])->middleware('can:view-wallets,auth()->user()');
     Route::get('/wallets/{wallet}', [WalletController::class, 'show'])
         ->middleware('can:view-wallet,wallet');
 
