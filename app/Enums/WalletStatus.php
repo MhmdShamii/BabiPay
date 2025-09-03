@@ -6,5 +6,4 @@ enum WalletStatus: string
 {
     case Active = 'active';
     case Frozen = 'frozen';
-    case closed = 'closed';
 }

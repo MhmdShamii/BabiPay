@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
+use App\Enums\UserStatus;
+use App\Enums\WalletStatus;
 use App\Http\Requests\RequestDeposit;
 use App\Http\Requests\RequestP2P;
 use App\Http\Requests\RequestWithdraw;
@@ -21,6 +23,16 @@ class TransactionsController extends Controller
         $user = Auth::user();
 
         $wallet = Wallet::findOrFail($validation['wallet_id']);
+
+        $walletOwner = User::where('id', $wallet->user_id)->first();
+
+        if ($walletOwner->status != UserStatus::Active) {
+            return response()->json(['message' => 'Reciver User is ' . $walletOwner->status->value], 403);
+        }
+
+        if ($wallet->status !== WalletStatus::Active) {
+            return response()->json(['message' => 'Wallet is not active'], 400);
+        }
 
         $wallet->balance += $validation['amount'];
         $wallet->save();
@@ -61,6 +73,17 @@ class TransactionsController extends Controller
         $user = Auth::user();
 
         $wallet = Wallet::findOrFail($validation['wallet_id']);
+
+
+        $walletOwner = User::where('id', $wallet->user_id)->first();
+
+        if ($walletOwner->status !== UserStatus::Active) {
+            return response()->json(['message' => 'Reciver User is ' . $walletOwner->status->value], 403);
+        }
+
+        if ($wallet->status !== WalletStatus::Active) {
+            return response()->json(['message' => 'Wallet is ' . $wallet->status->value], 400);
+        }
 
         $wallet->balance -= $validation['amount'];
         $wallet->save();
@@ -103,9 +126,12 @@ class TransactionsController extends Controller
 
         $senderWallet = Wallet::findOrFail($validation['sender_wallet_id']);
 
+        if ($senderWallet->status !== WalletStatus::Active) {
+            return response()->json(['message' => 'sender wallet is ' . $senderWallet->status->value], 400);
+        }
 
         if (! Gate::allows('canSendFromWallet', $senderWallet)) {
-            return response()->json(['message' => 'Unauthorizedss'], 403);
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         if ($senderWallet->balance < $validation['amount']) {
@@ -120,13 +146,22 @@ class TransactionsController extends Controller
             return response()->json(['message' => 'Reciver not Found'], 400);
         }
 
+        if ($reciveruser->status !== UserStatus::Active) {
+            return response()->json(['message' => 'Reciver User is ' . $reciveruser->status->value], 403);
+        }
+
         $receiverWallets = Wallet::where("user_id", $reciveruser->id)->get();
+
 
         if ($receiverWallets->isEmpty()) {
             return response()->json(['message' => 'Receiver wallets not found'], 400);
         }
 
         $walletToRecive = $receiverWallets->where("currency_id", $senderWallet->currency_id)->first();
+
+        if ($walletToRecive->status !== WalletStatus::Active) {
+            return response()->json(['message' => 'reciver wallet is ' . $walletToRecive->status->value], 400);
+        }
 
         if (! $walletToRecive) {
             return response()->json(['message' => 'Reciver Dont have a wallet for this currency'], 400);
