@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Enums\WalletStatus;
 use App\Http\Requests\Auth\LoginUserRequest;
 use App\Http\Requests\Auth\RegisterUserRequest;
@@ -82,6 +83,10 @@ class AuthController extends Controller
         //check if the password maches the password of the found users
         if (! $user || ! Hash::check($password, $user->password)) {
             return response()->json(['message' => 'Invalid credentials.'], 422);
+        }
+
+        if ($user->status !== UserStatus::Active) {
+            return response()->json(['message' => 'Your account is ' . $user->status . '. Please contact support.'], 403);
         }
 
         //delete old user access token

@@ -84,4 +84,47 @@ class WalletController extends Controller
             })
         );
     }
+
+    public function freeze(Wallet $wallet)
+    {
+        if ($wallet->status === WalletStatus::Frozen) {
+            return response()->json(['message' => 'Wallet is already frozen.'], 400);
+        }
+
+        $wallet->status = WalletStatus::Frozen;
+        $wallet->save();
+
+
+        $reciveruser = User::where('id', $wallet->user_id)
+            ->first();
+
+        return response()->json(['message' => 'Wallet has been frozen successfully.', 'wallet' => [
+            'id'       => $wallet->id,
+            'ownerName' => $reciveruser->username,
+            'balance'  => $wallet->balance,
+            'currency' => $wallet->currency->name,
+            'status'   => $wallet->status,
+        ]], 200);
+    }
+
+    public function activate(Wallet $wallet)
+    {
+        if ($wallet->status === WalletStatus::Active) {
+            return response()->json(['message' => 'Wallet is already active.'], 400);
+        }
+
+        $wallet->status = WalletStatus::Active;
+        $wallet->save();
+
+        $reciveruser = User::where('id', $wallet->user_id)
+            ->first();
+
+        return response()->json(['message' => 'Wallet has been activated successfully.', 'wallet' => [
+            'id'       => $wallet->id,
+            'ownerName' => $reciveruser->username,
+            'balance'  => $wallet->balance,
+            'currency' => $wallet->currency->name,
+            'status'   => $wallet->status,
+        ]], 200);
+    }
 }
