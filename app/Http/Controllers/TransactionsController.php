@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class TransactionsController extends Controller
@@ -22,48 +23,59 @@ class TransactionsController extends Controller
         $validation = $request->validated();
         $user = Auth::user();
 
-        $wallet = Wallet::findOrFail($validation['wallet_id']);
+        $result = DB::transaction(function () use ($validation, $user) {
 
-        $walletOwner = User::where('id', $wallet->user_id)->first();
+            $wallet = Wallet::where('id', $validation['wallet_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($walletOwner->status != UserStatus::Active) {
-            return response()->json(['message' => 'Reciver User is ' . $walletOwner->status->value], 403);
-        }
+            $walletOwnerModel = User::where('id', $wallet->user_id)->firstOrFail();
 
-        if ($wallet->status !== WalletStatus::Active) {
-            return response()->json(['message' => 'Wallet is not active'], 400);
-        }
+            if ($walletOwnerModel->status !== UserStatus::Active) {
+                abort(403, 'Receiver user is ' . $walletOwnerModel->status->value);
+            }
 
-        $wallet->balance += $validation['amount'];
-        $wallet->save();
+            if ($wallet->status !== WalletStatus::Active) {
+                abort(403, 'Wallet is not active');
+            }
 
-        $transaction = Transaction::create([
-            'user_id'   => $user->id,
-            'wallet_id' => $wallet->id,
-            'amount'    => $validation['amount'],
-            'transaction_type' => TransactionType::Deposit,
-            'description' => 'Deposit to wallet',
-            'status' => TransactionStatus::Complete,
-            'transaction_date_time' => now(),
-        ]);
-        $walletOwner = User::find($wallet->user_id)->only(['id', 'username', 'email']);
+            $wallet->balance += $validation['amount'];
+            $wallet->save();
+
+            $transaction = Transaction::create([
+                'user_id'   => $user->id,
+                'wallet_id' => $wallet->id,
+                'amount'    => $validation['amount'],
+                'transaction_type' => TransactionType::Deposit,
+                'description' => 'Deposit to wallet',
+                'status' => TransactionStatus::Complete,
+                'transaction_date_time' => now(),
+            ]);
+
+            $wallet = $wallet->fresh()->load('currency');
+
+            return [
+                'wallet' => [
+                    'id'       => $wallet->id,
+                    'owner'    => $walletOwnerModel->only(['id', 'username', 'email']),
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                ],
+                'transaction' => [
+                    'id'          => $transaction->id,
+                    'performedBy' => $user->username,
+                    'amount'      => $transaction->amount,
+                    'type'        => $transaction->transaction_type,
+                    'date'        => $transaction->transaction_date_time,
+                ],
+            ];
+        });
 
         return response()->json([
-            'message' => 'Deposit successful',
-            'ammountAdded'  => $validation['amount'],
-            'wallet'  => [
-                'id'       => $wallet->id,
-                'owner'     => $walletOwner,
-                'balance'  => $wallet->balance,
-                'currency' => $wallet->currency->name,
-            ],
-            'transaction' => [
-                'id'       => $transaction->id,
-                'amount'   => $transaction->amount,
-                'type'     => $transaction->transaction_type,
-                'status'   => $transaction->status,
-                'date'     => $transaction->transaction_date_time,
-            ]
+            'message'      => 'Deposit successful',
+            'amountAdded'  => $validation['amount'],
+            'wallet'       => $result['wallet'],
+            'transaction'  => $result['transaction'],
         ]);
     }
 
@@ -72,50 +84,63 @@ class TransactionsController extends Controller
         $validation = $request->validated();
         $user = Auth::user();
 
-        $wallet = Wallet::findOrFail($validation['wallet_id']);
+        $result = DB::transaction(function () use ($validation, $user) {
 
+            $wallet = Wallet::where('id', $validation['wallet_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $walletOwner = User::where('id', $wallet->user_id)->first();
+            $walletOwner = User::where('id', $wallet->user_id)->firstOrFail();
 
-        if ($walletOwner->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Reciver User is ' . $walletOwner->status->value], 403);
-        }
+            if ($validation['amount'] > $wallet->balance) {
+                abort(409, 'Insufficient balance in wallet');
+            }
 
-        if ($wallet->status !== WalletStatus::Active) {
-            return response()->json(['message' => 'Wallet is ' . $wallet->status->value], 400);
-        }
+            if ($walletOwner->status !== UserStatus::Active) {
+                abort(403, 'Account wallet is ' . $walletOwner->status->value);
+            }
 
-        $wallet->balance -= $validation['amount'];
-        $wallet->save();
+            if ($wallet->status !== WalletStatus::Active) {
+                abort(403, 'Wallet is ' . $wallet->status->value);
+            }
 
-        $transaction = Transaction::create([
-            'user_id'   => $user->id,
-            'wallet_id' => $wallet->id,
-            'amount'    => $validation['amount'],
-            'transaction_type' => TransactionType::Withdraw,
-            'description' => 'Withdraw from wallet',
-            'status' => TransactionStatus::Complete,
-            'transaction_date_time' => now(),
-        ]);
+            $wallet->balance -= $validation['amount'];
+            $wallet->save();
 
-        $walletOwner = User::find($wallet->user_id)->only(['id', 'username', 'email']);
+            $wallet = $wallet->fresh()->load('currency');
+
+            $transaction = Transaction::create([
+                'user_id'   => $user->id,
+                'wallet_id' => $wallet->id,
+                'amount'    => $validation['amount'],
+                'transaction_type' => TransactionType::Withdraw,
+                'description' => 'Withdraw from wallet',
+                'status' => TransactionStatus::Complete,
+                'transaction_date_time' => now(),
+            ]);
+
+            return [
+                'wallet' => [
+                    'id'       => $wallet->id,
+                    'owner'    => $walletOwner->only(['id', 'username', 'email']),
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                ],
+                'transaction' => [
+                    'id'            => $transaction->id,
+                    'withdrawedFrom' => $walletOwner->username,
+                    'amount'        => $transaction->amount,
+                    'type'          => $transaction->transaction_type,
+                    'date'          => $transaction->transaction_date_time,
+                ],
+            ];
+        });
 
         return response()->json([
-            'message' => 'Withdrawal successful',
-            'withdrawAmount'  => $validation['amount'],
-            'wallet'  => [
-                'id'       => $wallet->id,
-                'owner'     => $walletOwner,
-                'balance'  => $wallet->balance,
-                'currency' => $wallet->currency->name,
-            ],
-            'transaction' => [
-                'id'       => $transaction->id,
-                'amount'   => $transaction->amount,
-                'type'     => $transaction->transaction_type,
-                'status'   => $transaction->status,
-                'date'     => $transaction->transaction_date_time,
-            ]
+            'message'        => 'Withdrawal successful',
+            'withdrawAmount' => $validation['amount'],
+            'wallet'         => $result['wallet'],
+            'transaction'    => $result['transaction'],
         ]);
     }
 
@@ -124,92 +149,101 @@ class TransactionsController extends Controller
         $validation = $request->validated();
         $user = Auth::user();
 
-        $senderWallet = Wallet::findOrFail($validation['sender_wallet_id']);
+        $result = DB::transaction(function () use ($validation, $user) {
 
-        if ($senderWallet->status !== WalletStatus::Active) {
-            return response()->json(['message' => 'sender wallet is ' . $senderWallet->status->value], 400);
-        }
+            // Lock sender wallet
+            $senderWallet = Wallet::where('id', $validation['sender_wallet_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (! Gate::allows('canSendFromWallet', $senderWallet)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+            if ($senderWallet->status !== WalletStatus::Active) {
+                abort(403, 'Sender wallet is ' . $senderWallet->status->value);
+            }
 
-        if ($senderWallet->balance < $validation['amount']) {
-            return response()->json(['message' => 'Insufficient balance in sender wallet'], 400);
-        }
+            if (! Gate::allows('canSendFromWallet', $senderWallet)) {
+                abort(403, 'Unauthorized');
+            }
 
-        $reciveruser = User::where('email', $validation['reciverIdentifier'])
-            ->orWhere('username', $validation['reciverIdentifier'])
-            ->first();
+            if ($senderWallet->balance < $validation['amount']) {
+                abort(409, 'Insufficient balance in sender wallet');
+            }
 
-        if (! $reciveruser) {
-            return response()->json(['message' => 'Reciver not Found'], 400);
-        }
+            // Find receiver user (by email or username)
+            $receiverUser = User::where('email', $validation['receiverIdentifier'])
+                ->orWhere('username', $validation['receiverIdentifier'])
+                ->first();
 
-        if ($reciveruser->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Reciver User is ' . $reciveruser->status->value], 403);
-        }
+            if (! $receiverUser) {
+                abort(404, 'Receiver not found');
+            }
 
-        $receiverWallets = Wallet::where("user_id", $reciveruser->id)->get();
+            if ($receiverUser->status !== UserStatus::Active) {
+                abort(403, 'Receiver user is ' . $receiverUser->status->value);
+            }
 
+            // Find & lock receiver wallet with same currency
+            $receiverWallet = Wallet::where('user_id', $receiverUser->id)
+                ->where('currency_id', $senderWallet->currency_id)
+                ->lockForUpdate()
+                ->first();
 
-        if ($receiverWallets->isEmpty()) {
-            return response()->json(['message' => 'Receiver wallets not found'], 400);
-        }
+            if (! $receiverWallet) {
+                abort(404, 'Receiver does not have a wallet for this currency');
+            }
 
-        $walletToRecive = $receiverWallets->where("currency_id", $senderWallet->currency_id)->first();
+            if ($receiverWallet->status !== WalletStatus::Active) {
+                abort(403, 'Receiver wallet is ' . $receiverWallet->status->value);
+            }
 
-        if ($walletToRecive->status !== WalletStatus::Active) {
-            return response()->json(['message' => 'reciver wallet is ' . $walletToRecive->status->value], 400);
-        }
+            // Move funds
+            $senderWallet->balance  -= $validation['amount'];
+            $receiverWallet->balance += $validation['amount'];
+            $senderWallet->save();
+            $receiverWallet->save();
 
-        if (! $walletToRecive) {
-            return response()->json(['message' => 'Reciver Dont have a wallet for this currency'], 400);
-        }
+            // Create transaction
+            $transaction = Transaction::create([
+                'user_id'             => $user->id,
+                'wallet_id'           => $senderWallet->id,
+                'related_wallet_id'   => $receiverWallet->id,
+                'amount'              => $validation['amount'],
+                'transaction_type'    => TransactionType::PeerToPeer,
+                'description'         => $validation['description'] ?? ('P2P transfer to ' . $receiverUser->username),
+                'status'              => TransactionStatus::Complete,
+                'transaction_date_time' => now(),
+            ]);
 
-        $senderWallet->balance -= $validation['amount'];
-        $walletToRecive->balance += $validation['amount'];
-        $senderWallet->save();
-        $walletToRecive->save();
+            // Refresh for response
+            $senderWallet   = $senderWallet->fresh()->load('currency');
+            $receiverWallet = $receiverWallet->fresh()->load('currency');
 
-        $transaction = Transaction::create([
-            'user_id'   => $user->id,
-            'wallet_id' => $senderWallet->id,
-            'related_wallet_id' => $walletToRecive->id,
-            'amount'    => $validation['amount'],
-            'transaction_type' => TransactionType::PeerToPeer,
-            'description' => $validation['description'] ?? 'P2P transfer to ' . $reciveruser->username,
-            'status' => TransactionStatus::Complete,
-            'transaction_date_time' => now(),
-        ]);
-
-
+            return [
+                'senderWallet' => [
+                    'id'       => $senderWallet->id,
+                    'balance'  => $senderWallet->balance,
+                    'currency' => $senderWallet->currency->name,
+                ],
+                'receiverWallet' => [
+                    'id'       => $receiverWallet->id,
+                    'owner'    => $receiverUser->only(['id', 'username', 'email']),
+                    'balance'  => $receiverWallet->balance,
+                    'currency' => $receiverWallet->currency->name,
+                ],
+                'transaction' => [
+                    'id'        => $transaction->id,
+                    'amount'    => $transaction->amount,
+                    'type'      => $transaction->transaction_type,
+                    'date'      => $transaction->transaction_date_time,
+                    'note'      => $transaction->description,
+                ],
+            ];
+        });
 
         return response()->json([
-            'message' => 'P2P transfer successful',
-            'senderWallet'  => [
-                'id'       => $senderWallet->id,
-                'userName'  => $user->username,
-                'balance'  => $senderWallet->balance,
-                'currency' => $senderWallet->currency->name,
-            ],
-            'receiverWallet' => [
-                'id'       => $walletToRecive->id,
-                'reciverName'  => $reciveruser->username,
-                'balance'  => $walletToRecive->balance,
-                'currency' => $walletToRecive->currency->name,
-            ],
-            'transaction' => [
-                'id'       => $transaction->id,
-                'from'     => $user->username,
-                'to'       => $reciveruser->username,
-                'currency' => $senderWallet->currency->name,
-                'amount'   => $transaction->amount,
-                'description' => $transaction->description,
-                'type'     => $transaction->transaction_type,
-                'status'   => $transaction->status,
-                'date'     => $transaction->transaction_date_time,
-            ]
+            'message'        => 'P2P transfer successful',
+            'senderWallet'   => $result['senderWallet'],
+            'receiverWallet' => $result['receiverWallet'],
+            'transaction'    => $result['transaction'],
         ]);
     }
 }
