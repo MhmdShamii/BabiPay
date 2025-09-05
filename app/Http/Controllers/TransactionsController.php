@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class TransactionsController extends Controller
@@ -22,48 +23,59 @@ class TransactionsController extends Controller
         $validation = $request->validated();
         $user = Auth::user();
 
-        $wallet = Wallet::findOrFail($validation['wallet_id']);
+        $result = DB::transaction(function () use ($validation, $user) {
 
-        $walletOwner = User::where('id', $wallet->user_id)->first();
+            $wallet = Wallet::where('id', $validation['wallet_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($walletOwner->status != UserStatus::Active) {
-            return response()->json(['message' => 'Reciver User is ' . $walletOwner->status->value], 403);
-        }
+            $walletOwnerModel = User::where('id', $wallet->user_id)->firstOrFail();
 
-        if ($wallet->status !== WalletStatus::Active) {
-            return response()->json(['message' => 'Wallet is not active'], 400);
-        }
+            if ($walletOwnerModel->status !== UserStatus::Active) {
+                abort(403, 'Receiver user is ' . $walletOwnerModel->status->value);
+            }
 
-        $wallet->balance += $validation['amount'];
-        $wallet->save();
+            if ($wallet->status !== WalletStatus::Active) {
+                abort(403, 'Wallet is not active');
+            }
 
-        $transaction = Transaction::create([
-            'user_id'   => $user->id,
-            'wallet_id' => $wallet->id,
-            'amount'    => $validation['amount'],
-            'transaction_type' => TransactionType::Deposit,
-            'description' => 'Deposit to wallet',
-            'status' => TransactionStatus::Complete,
-            'transaction_date_time' => now(),
-        ]);
-        $walletOwner = User::find($wallet->user_id)->only(['id', 'username', 'email']);
+            $wallet->balance += $validation['amount'];
+            $wallet->save();
+
+            $transaction = Transaction::create([
+                'user_id'   => $user->id,
+                'wallet_id' => $wallet->id,
+                'amount'    => $validation['amount'],
+                'transaction_type' => TransactionType::Deposit,
+                'description' => 'Deposit to wallet',
+                'status' => TransactionStatus::Complete,
+                'transaction_date_time' => now(),
+            ]);
+
+            $wallet = $wallet->fresh()->load('currency');
+
+            return [
+                'wallet' => [
+                    'id'       => $wallet->id,
+                    'owner'    => $walletOwnerModel->only(['id', 'username', 'email']),
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                ],
+                'transaction' => [
+                    'id'          => $transaction->id,
+                    'performedBy' => $user->username,
+                    'amount'      => $transaction->amount,
+                    'type'        => $transaction->transaction_type,
+                    'date'        => $transaction->transaction_date_time,
+                ],
+            ];
+        });
 
         return response()->json([
-            'message' => 'Deposit successful',
-            'ammountAdded'  => $validation['amount'],
-            'wallet'  => [
-                'id'       => $wallet->id,
-                'owner'     => $walletOwner,
-                'balance'  => $wallet->balance,
-                'currency' => $wallet->currency->name,
-            ],
-            'transaction' => [
-                'id'       => $transaction->id,
-                'amount'   => $transaction->amount,
-                'type'     => $transaction->transaction_type,
-                'status'   => $transaction->status,
-                'date'     => $transaction->transaction_date_time,
-            ]
+            'message'      => 'Deposit successful',
+            'amountAdded'  => $validation['amount'],
+            'wallet'       => $result['wallet'],
+            'transaction'  => $result['transaction'],
         ]);
     }
 
@@ -78,7 +90,7 @@ class TransactionsController extends Controller
         $walletOwner = User::where('id', $wallet->user_id)->first();
 
         if ($walletOwner->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Reciver User is ' . $walletOwner->status->value], 403);
+            return response()->json(['message' => 'Receiver user is ' . $walletOwner->status->value], 403);
         }
 
         if ($wallet->status !== WalletStatus::Active) {
@@ -138,19 +150,19 @@ class TransactionsController extends Controller
             return response()->json(['message' => 'Insufficient balance in sender wallet'], 400);
         }
 
-        $reciveruser = User::where('email', $validation['reciverIdentifier'])
-            ->orWhere('username', $validation['reciverIdentifier'])
+        $receiverUser = User::where('email', $validation['receiverIdentifier'])
+            ->orWhere('username', $validation['receiverIdentifier'])
             ->first();
 
-        if (! $reciveruser) {
-            return response()->json(['message' => 'Reciver not Found'], 400);
+        if (! $receiverUser) {
+            return response()->json(['message' => 'Receiver not Found'], 400);
         }
 
-        if ($reciveruser->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Reciver User is ' . $reciveruser->status->value], 403);
+        if ($receiverUser->status !== UserStatus::Active) {
+            return response()->json(['message' => 'Receiver user is ' . $receiverUser->status->value], 403);
         }
 
-        $receiverWallets = Wallet::where("user_id", $reciveruser->id)->get();
+        $receiverWallets = Wallet::where("user_id", $receiverUser->id)->get();
 
 
         if ($receiverWallets->isEmpty()) {
@@ -178,7 +190,7 @@ class TransactionsController extends Controller
             'related_wallet_id' => $walletToRecive->id,
             'amount'    => $validation['amount'],
             'transaction_type' => TransactionType::PeerToPeer,
-            'description' => $validation['description'] ?? 'P2P transfer to ' . $reciveruser->username,
+            'description' => $validation['description'] ?? 'P2P transfer to ' . $receiverUser->username,
             'status' => TransactionStatus::Complete,
             'transaction_date_time' => now(),
         ]);
@@ -195,14 +207,14 @@ class TransactionsController extends Controller
             ],
             'receiverWallet' => [
                 'id'       => $walletToRecive->id,
-                'reciverName'  => $reciveruser->username,
+                'receiverName'  => $receiverUser->username,
                 'balance'  => $walletToRecive->balance,
                 'currency' => $walletToRecive->currency->name,
             ],
             'transaction' => [
                 'id'       => $transaction->id,
                 'from'     => $user->username,
-                'to'       => $reciveruser->username,
+                'to'       => $receiverUser->username,
                 'currency' => $senderWallet->currency->name,
                 'amount'   => $transaction->amount,
                 'description' => $transaction->description,
