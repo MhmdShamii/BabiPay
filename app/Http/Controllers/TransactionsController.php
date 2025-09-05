@@ -84,50 +84,63 @@ class TransactionsController extends Controller
         $validation = $request->validated();
         $user = Auth::user();
 
-        $wallet = Wallet::findOrFail($validation['wallet_id']);
+        $result = DB::transaction(function () use ($validation, $user) {
 
+            $wallet = Wallet::where('id', $validation['wallet_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $walletOwner = User::where('id', $wallet->user_id)->first();
+            $walletOwner = User::where('id', $wallet->user_id)->firstOrFail();
 
-        if ($walletOwner->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Receiver user is ' . $walletOwner->status->value], 403);
-        }
+            if ($validation['amount'] > $wallet->balance) {
+                abort(409, 'Insufficient balance in wallet');
+            }
 
-        if ($wallet->status !== WalletStatus::Active) {
-            return response()->json(['message' => 'Wallet is ' . $wallet->status->value], 400);
-        }
+            if ($walletOwner->status !== UserStatus::Active) {
+                abort(403, 'Account wallet is ' . $walletOwner->status->value);
+            }
 
-        $wallet->balance -= $validation['amount'];
-        $wallet->save();
+            if ($wallet->status !== WalletStatus::Active) {
+                abort(403, 'Wallet is ' . $wallet->status->value);
+            }
 
-        $transaction = Transaction::create([
-            'user_id'   => $user->id,
-            'wallet_id' => $wallet->id,
-            'amount'    => $validation['amount'],
-            'transaction_type' => TransactionType::Withdraw,
-            'description' => 'Withdraw from wallet',
-            'status' => TransactionStatus::Complete,
-            'transaction_date_time' => now(),
-        ]);
+            $wallet->balance -= $validation['amount'];
+            $wallet->save();
 
-        $walletOwner = User::find($wallet->user_id)->only(['id', 'username', 'email']);
+            $wallet = $wallet->fresh()->load('currency');
+
+            $transaction = Transaction::create([
+                'user_id'   => $user->id,
+                'wallet_id' => $wallet->id,
+                'amount'    => $validation['amount'],
+                'transaction_type' => TransactionType::Withdraw,
+                'description' => 'Withdraw from wallet',
+                'status' => TransactionStatus::Complete,
+                'transaction_date_time' => now(),
+            ]);
+
+            return [
+                'wallet' => [
+                    'id'       => $wallet->id,
+                    'owner'    => $walletOwner->only(['id', 'username', 'email']),
+                    'balance'  => $wallet->balance,
+                    'currency' => $wallet->currency->name,
+                ],
+                'transaction' => [
+                    'id'            => $transaction->id,
+                    'withdrawedFrom' => $walletOwner->username,
+                    'amount'        => $transaction->amount,
+                    'type'          => $transaction->transaction_type,
+                    'date'          => $transaction->transaction_date_time,
+                ],
+            ];
+        });
 
         return response()->json([
-            'message' => 'Withdrawal successful',
-            'withdrawAmount'  => $validation['amount'],
-            'wallet'  => [
-                'id'       => $wallet->id,
-                'owner'     => $walletOwner,
-                'balance'  => $wallet->balance,
-                'currency' => $wallet->currency->name,
-            ],
-            'transaction' => [
-                'id'       => $transaction->id,
-                'amount'   => $transaction->amount,
-                'type'     => $transaction->transaction_type,
-                'status'   => $transaction->status,
-                'date'     => $transaction->transaction_date_time,
-            ]
+            'message'        => 'Withdrawal successful',
+            'withdrawAmount' => $validation['amount'],
+            'wallet'         => $result['wallet'],
+            'transaction'    => $result['transaction'],
         ]);
     }
 
