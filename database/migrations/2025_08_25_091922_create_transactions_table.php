@@ -21,9 +21,6 @@ return new class extends Migration
             //have value ony if transaction type is P2P
             $table->foreignUuid('related_wallet_id')->nullable()->constrained('wallets')->nullOnDelete();
 
-            $table->string('user_transaction_role')->default('sender');
-
-
             $table->unsignedBigInteger('amount');
             $table->string('transaction_type')->default('P2P');
 
