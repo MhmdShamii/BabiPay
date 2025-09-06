@@ -60,7 +60,7 @@ class AuthController extends Controller
                 ]
             ],
             'token' => $token->plainTextToken,
-            'expieres_at' => $token->accessToken->expires_at,
+            'expires_at' => $token->accessToken->expires_at,
             'token_type' => 'Bearer',
         ], 201);
     }
@@ -82,11 +82,11 @@ class AuthController extends Controller
 
         //check if the password maches the password of the found users
         if (! $user || ! Hash::check($password, $user->password)) {
-            return response()->json(['message' => 'Invalid credentials.'], 422);
+            return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
         if ($user->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Your account is ' . $user->status . '. Please contact support.'], 403);
+            return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
         //delete old user access token
@@ -109,7 +109,7 @@ class AuthController extends Controller
                 'phone'     => $user->phone,
             ],
             'token' => $newtoken->plainTextToken,
-            'expieres_at' => $newtoken->accessToken->expires_at,
+            'expires_at' => $newtoken->accessToken->expires_at,
             'token_type' => 'Bearer',
         ], 200);
     }
