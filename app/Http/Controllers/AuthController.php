@@ -82,11 +82,11 @@ class AuthController extends Controller
 
         //check if the password maches the password of the found users
         if (! $user || ! Hash::check($password, $user->password)) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+            return response()->json(['message' => 'failed to login.'], 401);
         }
 
         if ($user->status !== UserStatus::Active) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+            return response()->json(['message' => 'failed to login.'], 401);
         }
 
         //delete old user access token
