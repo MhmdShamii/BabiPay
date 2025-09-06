@@ -13,13 +13,16 @@ class CurrencyController extends Controller
 
         $currency = Currency::create([
             'name' => $validation['name'],
-            'code' => $validation['code']
+            'code' => $validation['code'],
+            'decimal_places' => $validation['decimal_places'],
+
         ]);
 
         return response()->json([
             'id' => $currency['id'],
             'name' => $currency['name'],
             'code' => $currency['code'],
+            'decimal_places' => $currency['decimal_places'],
             'created_at' => $currency['created_at'],
             'updated_at' => $currency['updated_at']
         ]);

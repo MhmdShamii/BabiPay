@@ -23,11 +23,15 @@ class TransactionsController extends Controller
         $validation = $request->validated();
         $user = Auth::user();
 
+
         $result = DB::transaction(function () use ($validation, $user) {
 
             $wallet = Wallet::where('id', $validation['wallet_id'])
                 ->lockForUpdate()
-                ->firstOrFail();
+                ->firstOrFail()
+                ->load('currency');
+
+            $amountInCents = (int) ($validation['amount'] * (pow(10, $wallet->currency->decimal_places)));
 
             $walletOwnerModel = User::where('id', $wallet->user_id)->firstOrFail();
 
@@ -39,13 +43,13 @@ class TransactionsController extends Controller
                 abort(403, 'Wallet is not active');
             }
 
-            $wallet->balance += $validation['amount'];
+            $wallet->balance += $amountInCents;
             $wallet->save();
 
             $transaction = Transaction::create([
                 'user_id'   => $user->id,
                 'wallet_id' => $wallet->id,
-                'amount'    => $validation['amount'],
+                'amount'    => $amountInCents,
                 'transaction_type' => TransactionType::Deposit,
                 'description' => 'Deposit to wallet',
                 'status' => TransactionStatus::Complete,
@@ -58,7 +62,7 @@ class TransactionsController extends Controller
                 'wallet' => [
                     'id'       => $wallet->id,
                     'owner'    => $walletOwnerModel->only(['id', 'username', 'email']),
-                    'balance'  => $wallet->balance,
+                    'balance'  => ($wallet->balance) / (pow(10, $wallet->currency->decimal_places)),
                     'currency' => $wallet->currency->name,
                 ],
                 'transaction' => [
@@ -88,11 +92,11 @@ class TransactionsController extends Controller
 
             $wallet = Wallet::where('id', $validation['wallet_id'])
                 ->lockForUpdate()
-                ->firstOrFail();
+                ->firstOrFail()->load('currency');
 
             $walletOwner = User::where('id', $wallet->user_id)->firstOrFail();
 
-            if ($validation['amount'] > $wallet->balance) {
+            if ($validation['amount'] > ($wallet->balance) / (pow(10, $wallet->currency->decimal_places))) {
                 abort(409, 'Insufficient balance in wallet');
             }
 
@@ -104,7 +108,9 @@ class TransactionsController extends Controller
                 abort(403, 'Wallet is ' . $wallet->status->value);
             }
 
-            $wallet->balance -= $validation['amount'];
+            $amountInCents = (int) ($validation['amount'] * (pow(10, $wallet->currency->decimal_places)));
+
+            $wallet->balance -= $amountInCents;
             $wallet->save();
 
             $wallet = $wallet->fresh()->load('currency');
@@ -112,7 +118,7 @@ class TransactionsController extends Controller
             $transaction = Transaction::create([
                 'user_id'   => $user->id,
                 'wallet_id' => $wallet->id,
-                'amount'    => $validation['amount'],
+                'amount'    => $amountInCents,
                 'transaction_type' => TransactionType::Withdraw,
                 'description' => 'Withdraw from wallet',
                 'status' => TransactionStatus::Complete,
@@ -123,7 +129,7 @@ class TransactionsController extends Controller
                 'wallet' => [
                     'id'       => $wallet->id,
                     'owner'    => $walletOwner->only(['id', 'username', 'email']),
-                    'balance'  => $wallet->balance,
+                    'balance'  => ($wallet->balance) / (pow(10, $wallet->currency->decimal_places)),
                     'currency' => $wallet->currency->name,
                 ],
                 'transaction' => [
@@ -154,11 +160,8 @@ class TransactionsController extends Controller
             // Lock sender wallet
             $senderWallet = Wallet::where('id', $validation['sender_wallet_id'])
                 ->lockForUpdate()
-                ->firstOrFail();
+                ->firstOrFail()->load('currency');
 
-            if ($senderWallet->status !== WalletStatus::Active) {
-                abort(403, 'Sender wallet is ' . $senderWallet->status->value);
-            }
 
             if (! Gate::allows('canSendFromWallet', $senderWallet)) {
                 abort(403, 'Unauthorized');
@@ -195,9 +198,16 @@ class TransactionsController extends Controller
                 abort(403, 'Receiver wallet is ' . $receiverWallet->status->value);
             }
 
+            if ($senderWallet->id === $receiverWallet->id) {
+                abort(409, 'Cannot transfer to the same wallet');
+            }
+
+            $amountInCents = (int) ($validation['amount'] * (pow(10, $senderWallet->currency->decimal_places)));
+
+
             // Move funds
-            $senderWallet->balance  -= $validation['amount'];
-            $receiverWallet->balance += $validation['amount'];
+            $senderWallet->balance  -= $amountInCents;
+            $receiverWallet->balance += $amountInCents;
             $senderWallet->save();
             $receiverWallet->save();
 
@@ -206,7 +216,7 @@ class TransactionsController extends Controller
                 'user_id'             => $user->id,
                 'wallet_id'           => $senderWallet->id,
                 'related_wallet_id'   => $receiverWallet->id,
-                'amount'              => $validation['amount'],
+                'amount'              => $amountInCents,
                 'transaction_type'    => TransactionType::PeerToPeer,
                 'description'         => $validation['description'] ?? ('P2P transfer to ' . $receiverUser->username),
                 'status'              => TransactionStatus::Complete,
@@ -220,18 +230,18 @@ class TransactionsController extends Controller
             return [
                 'senderWallet' => [
                     'id'       => $senderWallet->id,
-                    'balance'  => $senderWallet->balance,
+                    'balance'  => $senderWallet->balance / (pow(10, $senderWallet->currency->decimal_places)),
                     'currency' => $senderWallet->currency->name,
                 ],
                 'receiverWallet' => [
                     'id'       => $receiverWallet->id,
                     'owner'    => $receiverUser->only(['id', 'username', 'email']),
-                    'balance'  => $receiverWallet->balance,
+                    'balance'  => $receiverWallet->balance / (pow(10, $receiverWallet->currency->decimal_places)),
                     'currency' => $receiverWallet->currency->name,
                 ],
                 'transaction' => [
                     'id'        => $transaction->id,
-                    'amount'    => $transaction->amount,
+                    'amount'    => $transaction->amount / (pow(10, $senderWallet->currency->decimal_places)),
                     'type'      => $transaction->transaction_type,
                     'date'      => $transaction->transaction_date_time,
                     'note'      => $transaction->description,

@@ -16,6 +16,7 @@ class Currency extends Model
     protected $fillable = [
         'name',
         'code',
+        'decimal_places',
     ];
 
     public function wallets(): HasMany
