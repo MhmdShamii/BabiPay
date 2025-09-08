@@ -30,7 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:deposit');
     Route::post('/transactions/withdraw', [TransactionsController::class, 'withdraw'])
         ->middleware('can:withdraw');
-    Route::post('/transactions/p2p', [TransactionsController::class, 'p2p']);
+    Route::post('/transactions/p2p', [TransactionsController::class, 'p2p'])->middleware('throttle:5,1');
 
     Route::middleware('can:isAdmin')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
