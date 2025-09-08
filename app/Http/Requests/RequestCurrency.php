@@ -24,6 +24,7 @@ class RequestCurrency extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'code'   => ['required', 'string', 'min:3', 'max:3', 'unique:currencies,code'],
+            'decimal_places' => ['required', 'integer', 'min:0', 'max:8'],
         ];
     }
 }
