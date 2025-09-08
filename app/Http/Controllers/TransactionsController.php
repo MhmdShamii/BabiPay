@@ -22,6 +22,85 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TransactionsController extends Controller
 {
+    public function index(User $user)
+    {
+        try {
+            if (! Gate::allows('view-transactions', $user)) {
+                return response()->json([
+                    'message' => 'Unauthorized to view these transactions.'
+                ], Response::HTTP_FORBIDDEN);
+            }
+
+            // Get transactions where the user is involved
+            $transactions = Transaction::where('user_id', $user->id)
+                ->orWhereHas('wallet', function ($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                })
+                ->orWhereHas('relatedWallet', function ($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                })
+                ->with(['wallet.currency', 'relatedWallet.currency'])
+                ->orderBy('transaction_date_time', 'desc')
+                ->get()
+                ->map(function ($transaction) use ($user) {
+                    // Determine the decimal places based on the transaction context
+                    $decimalPlaces = $transaction->wallet->currency->decimal_places;
+
+                    // If it's a P2P transaction and has a related wallet, use its currency for amount formatting
+                    if ($transaction->related_wallet_id && $transaction->relatedWallet) {
+                        $decimalPlaces = $transaction->relatedWallet->currency->decimal_places;
+                    }
+
+                    return [
+                        'user' => $user->only(['id', 'username', 'email']),
+                        'id'          => $transaction->id,
+                        'amount'      => $transaction->amount / (pow(10, $decimalPlaces)),
+                        'type'        => $transaction->transaction_type,
+                        'transactionSide' => ($transaction->transaction_type === TransactionType::PeerToPeer)
+                            ? ($user->id === $transaction->user_id ? 'sender' : 'receiver')
+                            : null,
+                        'status'      => $transaction->status,
+                        'description' => $transaction->description,
+                        'date'        => $transaction->transaction_date_time,
+                        'wallet'      => [
+                            'id'       => $transaction->wallet->id,
+                            'currency' => $transaction->wallet->currency->name,
+                        ],
+                        'relatedWallet' => $transaction->related_wallet_id ? [
+                            'id'       => $transaction->relatedWallet->id,
+                            'currency' => $transaction->relatedWallet->currency->name,
+                        ] : null,
+                    ];
+                });
+
+            return response()->json([
+                'message' => 'Transactions retrieved successfully.',
+                'transactions' => $transactions
+            ]);
+        } catch (ModelNotFoundException $e) {
+            Log::error('User not found when fetching transactions: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'requested_user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'message' => 'User not found.',
+                'error' => 'The specified user does not exist.'
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch transactions: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id(),
+                'requested_user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch transactions. Please try again later.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public function deposit(RequestDeposit $request)
     {
         try {
