@@ -15,6 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('name');
             $table->string('code', 3)->unique();
+            $table->integer('decimal_places')->default(2);
             $table->timestamps();
         });
     }

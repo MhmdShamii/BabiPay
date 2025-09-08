@@ -28,7 +28,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::define('view-wallets', function ($user, $userParam) {
-            return $user->id === $userParam->id || $user->role === UserRole::Employee || $user->role === UserRole::Admin;
+            return $user?->id === $userParam?->id || $user->role === UserRole::Employee || $user->role === UserRole::Admin;
         });
 
         Gate::define('canSendFromWallet', function ($user, $wallet) {
