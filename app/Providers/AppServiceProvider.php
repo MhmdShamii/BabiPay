@@ -34,6 +34,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('canSendFromWallet', function ($user, $wallet) {
             return $wallet->user_id === $user->id;
         });
+        Gate::define('view-transactions', function ($user, $userParam) {
+            return $user?->id === $userParam?->id || $user->role === UserRole::Employee || $user->role === UserRole::Admin;
+        });
 
         Gate::define('deposit', fn($user) => $user->role === UserRole::Employee || $user->role === UserRole::Admin);
         Gate::define('withdraw', fn($user) => $user->role === UserRole::Employee || $user->role === UserRole::Admin);
